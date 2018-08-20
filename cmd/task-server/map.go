@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"sync"
@@ -17,31 +19,31 @@ type TaskMap struct {
 // uniqueID generated a pseudo-random ID
 // that is guaranteed to be unique for the given
 // map
-// func (t *TaskMap) uniqueID() string {
-// 	source := make([]byte, 40)
-// 	var id string
-// 	var err error
-// 	loop := true
+func uniqueID(toCheck map[string]task.RuntimeTaskInfo) string {
+	source := make([]byte, 40)
+	var id string
+	var err error
+	loop := true
 
-// 	t.RLock()
-// 	defer t.RUnlock()
-// 	for loop {
-// 		_, err = rand.Read(source)
-// 		if err != nil {
-// 			id := hex.EncodeToString(source)
-// 			if _, ok := t.tasks[id]; !ok {
-// 				loop = false
-// 			}
-// 		}
-// 	}
-// 	return id
-// }
+	for loop {
+		_, err = rand.Read(source)
+		if err != nil {
+			id := hex.EncodeToString(source)
+			if _, ok := toCheck[id]; !ok {
+				loop = false
+			}
+		}
+	}
+	return id
+}
 
 // ReadTasks (re)fill the current map.
 // if empty, a new hash table will be created.
 func (t *TaskMap) ReadTasks(path string, empty bool) error {
 
 	file, err := os.Open(path)
+	defer file.Close()
+
 	if err != nil {
 		return err
 	}

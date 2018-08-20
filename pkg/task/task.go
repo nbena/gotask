@@ -3,6 +3,8 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -43,7 +45,16 @@ type Task struct {
 // RuntimeTaskInfo keeps only the necessary info
 // for a long-running task
 type RuntimeTaskInfo struct {
-	StartAt, EndAt time.Time
+	// misuring exec tim
+	StartAt time.Time
+	EndAt   time.Time
+	// show output?
+	ShowOutput bool
+
+	// pipe for stdout
+	OutPipe io.ReadCloser
+	// pipe for stderr
+	ErrPipe io.ReadCloser
 	*exec.Cmd
 }
 
@@ -57,11 +68,31 @@ func (r *RuntimeTaskInfo) WaitPoll(
 
 	go func() {
 		if waitErr := r.Wait(); waitErr != nil {
+			r.EndAt = time.Now()
 			err <- [2]string{waitErr.Error(), id}
 		} else {
+			r.EndAt = time.Now()
 			done <- id
 		}
 	}()
+}
+
+func internalPipeToStr(pipe io.ReadCloser) (string, error) {
+	out, err := ioutil.ReadAll(pipe)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+// StdoutStr returns the output in string format
+func (r *RuntimeTaskInfo) StdoutStr() (string, error) {
+	return internalPipeToStr(r.OutPipe)
+}
+
+// StderrStr returns the output in string format
+func (r *RuntimeTaskInfo) StderrStr() (string, error) {
+	return internalPipeToStr(r.ErrPipe)
 }
 
 func (t *Task) String() string {
@@ -95,7 +126,8 @@ func (t *Task) Run() (*RuntimeTaskInfo, error) {
 	cmd.Dir = t.Dir
 
 	runtimeTask := &RuntimeTaskInfo{
-		Cmd: cmd,
+		Cmd:        cmd,
+		ShowOutput: t.ShowOutput,
 	}
 
 	if err := cmd.Start(); err != nil {
