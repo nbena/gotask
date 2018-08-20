@@ -35,7 +35,7 @@ func writeError(w http.ResponseWriter, msg string, addContentType bool,
 }
 
 // refresh
-func (t *TaskServer) renew(w http.ResponseWriter, r *http.Request) {
+func (t *TaskServer) refresh(w http.ResponseWriter, r *http.Request) {
 
 	if err := t.taskMap.ReadTasks(t.config.taskFilePath, true); err != nil {
 		writeError(w, err.Error(), true, http.StatusInternalServerError)

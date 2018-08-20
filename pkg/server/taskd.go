@@ -14,6 +14,14 @@
 package server
 
 import (
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/nbena/gotask/pkg/task"
 )
 
@@ -29,8 +37,82 @@ type TaskServer struct {
 
 	config *RuntimeConfig
 
-	taskManagerCloseChan chan struct{}
-	serverCloseChan      chan struct{}
+	taskManagerCloseChan chan os.Signal
+	serverCloseChan      chan os.Signal
+
+	listener net.Listener
+
+	// mux *http.ServeMux
+	httpServer *http.Server
+}
+
+// NewServer returns a new server instance.
+func NewServer(config *Config) (*TaskServer, error) {
+
+	listener, err := net.Listen("tcp4", fmt.Sprintf("%s:%d",
+		config.ListenAddr, config.ListenPort))
+	if err != nil {
+		return nil, err
+	}
+
+	taskMap := TaskMap{
+		tasks: make(map[string]task.Task),
+	}
+
+	if err = taskMap.ReadTasks(config.TaskFile, false); err != nil {
+		return nil, err
+	}
+
+	server := &TaskServer{
+		taskMap: taskMap,
+		pendingTasks: longRunningTasksMap{
+			taskMap: make(map[string]task.RuntimeTaskInfo),
+		},
+		completedTasks: longRunningTasksMap{
+			taskMap: make(map[string]task.RuntimeTaskInfo),
+		},
+		completeChan: make(chan string, config.InternalChanSize),
+		errChan:      make(chan [2]string, config.InternalChanSize),
+		config: &RuntimeConfig{
+			taskFilePath: config.TaskFile,
+			logRequests:  config.LogRequests,
+		},
+		taskManagerCloseChan: make(chan os.Signal),
+		serverCloseChan:      make(chan os.Signal),
+		listener:             listener,
+		// mux:                  http.NewServeMux(),
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/refresh", server.refresh)
+	mux.HandleFunc("/list", server.list)
+	mux.HandleFunc("/exec", server.execute)
+	mux.HandleFunc("/poll", server.poll)
+
+	server.httpServer = &http.Server{
+		Handler: mux,
+	}
+
+	signal.Notify(server.taskManagerCloseChan, syscall.SIGTERM, syscall.SIGSTOP, syscall.SIGINT)
+	signal.Notify(server.serverCloseChan, syscall.SIGTERM, syscall.SIGSTOP, syscall.SIGINT)
+
+	return server, nil
+}
+
+// Run starts the server.
+// it's a blocking call.
+func (t *TaskServer) Run() {
+	go func() {
+		if err := t.httpServer.Serve(t.listener); err != nil {
+			log.Printf("Error in listen: %s\n", err.Error())
+			t.taskManagerCloseChan <- syscall.SIGTERM
+		}
+	}()
+	go func() {
+		t.taskManager()
+	}()
+
+	<-t.serverCloseChan
 }
 
 type taskID struct {

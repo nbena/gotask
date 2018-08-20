@@ -11,25 +11,34 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-package server
+package main
 
-// Config is the configuration used by the server.
-type Config struct {
-	ListenAddr string `json:"listenAddr"`
-	ListenPort int    `json:"listenPort"`
-	TaskFile   string `json:"taskFile"`
-	AllowVars  bool   `json:"allowVars"`
+import (
+	"fmt"
+	"os"
 
-	UseTLS      bool   `json:"useTLS"`
-	TLSKeyPath  string `json:"tlsKeyPath"`
-	TLSCertPath string `json:"tlsCertPath"`
+	"github.com/nbena/gotask/pkg/server"
+)
 
-	LogRequests bool `json:"logRequests"`
-}
+func main() {
+	if len(os.Args) == 1 {
+		fmt.Fprintf(os.Stderr, "Missing path to configuration file\n")
+		os.Exit(-1)
+	}
 
-// RuntimeConfig keeps only the info we need at
-// runtime.
-type RuntimeConfig struct {
-	taskFilePath string
-	logRequests  bool
+	configFile := os.Args[1]
+
+	config, err := server.ReadConfig(configFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error in config: %s\n", err.Error())
+		os.Exit(-2)
+	}
+
+	server, err := server.NewServer(config)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error in start server: %s\n", err.Error())
+		os.Exit(-2)
+	}
+
+	server.Run()
 }
