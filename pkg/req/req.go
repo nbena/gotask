@@ -17,27 +17,27 @@ package req
 
 // ExecuteMessageRequest represents a /POST request execution
 type ExecuteMessageRequest struct {
-	TaskName string
+	TaskName string `json:"taskName"`
 }
 
 // ShortRunningTaskResponse is returned after issuing a request
 // for a short-running task.
 type ShortRunningTaskResponse struct {
-	Command string
-	Output  string
-	Error   string
+	Command string `json:"command"`
+	Output  string `json:"output,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // LongRunningTaskResponse is returned after issuing a request
 // for a long-running task.
 type LongRunningTaskResponse struct {
-	Command string
+	Command string `json:"command"`
 	ID      string
 }
 
 // ErrorMessageResponse is returned upon an error.
 type ErrorMessageResponse struct {
-	Error string
+	Error string `json:"error"`
 }
 
 const (
@@ -51,8 +51,8 @@ const (
 // PollStatusInProgressResponse is returned when you poll
 // for a not-finished task.
 type PollStatusInProgressResponse struct {
-	ID     string
-	Status string
+	ID     string `json:"ID"`
+	Status string `json:"status"`
 }
 
 // PollStatusCompletedResponse is returned when you poll

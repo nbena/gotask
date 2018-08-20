@@ -137,9 +137,21 @@ func (t *Task) Run() (*RuntimeTaskInfo, error) {
 	// because the Cmd works the same way
 	cmd.Dir = t.Dir
 
+	pipeOut, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	pipeErr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+
 	runtimeTask := &RuntimeTaskInfo{
 		Cmd:        cmd,
 		ShowOutput: t.ShowOutput,
+		OutPipe:    pipeOut,
+		ErrPipe:    pipeErr,
 	}
 
 	if err := cmd.Start(); err != nil {
