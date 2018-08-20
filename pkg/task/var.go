@@ -1,3 +1,16 @@
+// go-task, a simple client-server task runner
+// Copyright (C) 2018 nbena
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 package task
 
 import (
@@ -8,12 +21,12 @@ import (
 	"strings"
 )
 
-// TaskVar wraps a variable
-type TaskVar struct {
+// Var wraps a variable
+type Var struct {
 	Name, Value string
 }
 
-func (v *TaskVar) cleanAndCheck() error {
+func (v *Var) cleanAndCheck() error {
 	if strings.Index(v.Name, " ") != -1 {
 		return fmt.Errorf("Syntax error near: %s, try remove spaces", v.Name)
 	}
@@ -36,8 +49,8 @@ func (v *TaskVar) cleanAndCheck() error {
 // with some smart check such as trim spaces.
 // Returns error if there's at least one space in the Name
 // or Value is not conform to the right syntax.
-func NewTaskVar(name, value string) (TaskVar, error) {
-	taskVar := TaskVar{
+func NewTaskVar(name, value string) (Var, error) {
+	taskVar := Var{
 		Name:  name,
 		Value: value,
 	}
@@ -45,9 +58,9 @@ func NewTaskVar(name, value string) (TaskVar, error) {
 	return taskVar, err
 }
 
-func readVarsFrom(in *bufio.Reader) ([]TaskVar, error) {
-	var vars []TaskVar
-	var currentVar TaskVar
+func readVarsFrom(in *bufio.Reader) ([]Var, error) {
+	var vars []Var
+	var currentVar Var
 	var lineCount int
 	loop := true
 	var strLine string
@@ -91,7 +104,7 @@ func readVarsFrom(in *bufio.Reader) ([]TaskVar, error) {
 }
 
 // ReadVars reads variable from the given path.
-func ReadVars(path string) ([]TaskVar, error) {
+func ReadVars(path string) ([]Var, error) {
 	varsFile, err := os.Open(path)
 	if err != nil {
 		return nil, err

@@ -1,3 +1,16 @@
+// go-task, a simple client-server task runner
+// Copyright (C) 2018 nbena
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 package server
 
 import (
@@ -5,30 +18,31 @@ import (
 	"log"
 	"strings"
 
+	"github.com/nbena/gotask/pkg/req"
 	"github.com/nbena/gotask/pkg/task"
 )
 
-func (t *TaskServer) handleExecuteLongTask(runtimeTask task.RuntimeTaskInfo) *task.LongRunningTaskResponse {
+func (t *TaskServer) handleExecuteLongTask(runtimeTask task.RuntimeTaskInfo) *req.LongRunningTaskResponse {
 	// grabbing a new ID for this runtime task
 	t.pendingTasks.Lock()
 	id := uniqueID(t.pendingTasks.taskMap)
 	t.pendingTasks.taskMap[id] = runtimeTask
 	t.pendingTasks.Unlock()
 
-	return &task.LongRunningTaskResponse{
+	return &req.LongRunningTaskResponse{
 		Command: strings.Join(runtimeTask.Args, ""),
 		ID:      id,
 	}
 }
 
-func (t *TaskServer) handleExecuteShortTask(runtimeTask task.RuntimeTaskInfo) *task.ShortRunningTaskResponse {
+func (t *TaskServer) handleExecuteShortTask(runtimeTask task.RuntimeTaskInfo) *req.ShortRunningTaskResponse {
 	// wait for command to finish
 	id := "not random ID"
 	done := make(chan string)
 	errChan := make(chan [2]string)
 	runtimeTask.WaitPoll(id, done, errChan)
 
-	msg := &task.ShortRunningTaskResponse{
+	msg := &req.ShortRunningTaskResponse{
 		Command: strings.Join(runtimeTask.Args, ""),
 	}
 
@@ -51,7 +65,7 @@ func (t *TaskServer) handleExecuteShortTask(runtimeTask task.RuntimeTaskInfo) *t
 
 func (t *TaskServer) handleCompletedPoll(
 	taskID string,
-	taskInfo task.RuntimeTaskInfo) *task.PollStatusCompletedResponse {
+	taskInfo task.RuntimeTaskInfo) *req.PollStatusCompletedResponse {
 	var err error
 	outStr := ""
 	errStr := ""
@@ -65,12 +79,12 @@ func (t *TaskServer) handleCompletedPoll(
 	if errStr, err = taskInfo.StderrStr(); err != nil {
 		log.Printf("Error in get STDERR: %s", err.Error())
 	}
-	return &task.PollStatusCompletedResponse{
-		PollStatusInProgressResponse: task.PollStatusInProgressResponse{
+	return &req.PollStatusCompletedResponse{
+		PollStatusInProgressResponse: req.PollStatusInProgressResponse{
 			ID:     taskID,
-			Status: task.PollStatusCompleted,
+			Status: req.PollStatusCompleted,
 		},
-		ShortRunningTaskResponse: task.ShortRunningTaskResponse{
+		ShortRunningTaskResponse: req.ShortRunningTaskResponse{
 			Command: strings.Join(taskInfo.Args, ""),
 			Output:  outStr,
 			Error:   errStr,

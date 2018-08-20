@@ -1,3 +1,16 @@
+// go-task, a simple client-server task runner
+// Copyright (C) 2018 nbena
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 package server
 
 import (
@@ -5,6 +18,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/nbena/gotask/pkg/req"
 	"github.com/nbena/gotask/pkg/task"
 )
 
@@ -15,7 +29,7 @@ func writeError(w http.ResponseWriter, msg string, addContentType bool,
 	}
 	w.WriteHeader(status)
 	encoder := json.NewEncoder(w)
-	encoder.Encode(task.ErrorMessageResponse{
+	encoder.Encode(req.ErrorMessageResponse{
 		Error: msg,
 	})
 }
@@ -60,7 +74,7 @@ func (t *TaskServer) execute(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-type", "application/json, charset=utf-8")
 
 	decoder := json.NewDecoder(r.Body)
-	var req task.ExecuteMessageRequest
+	var req req.ExecuteMessageRequest
 	if err := decoder.Decode(&req); err != nil {
 		writeError(w, err.Error(), false, http.StatusInternalServerError)
 		return
@@ -134,9 +148,9 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 	var msg interface{}
 
 	if inPending {
-		msg = &task.PollStatusInProgressResponse{
+		msg = &req.PollStatusInProgressResponse{
 			ID:     taskID,
-			Status: task.PollStatusInProgress,
+			Status: req.PollStatusInProgress,
 		}
 	} else {
 		msg = t.handleCompletedPoll(taskID, taskInfo)
