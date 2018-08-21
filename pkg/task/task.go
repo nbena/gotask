@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 	"time"
 )
@@ -162,9 +163,44 @@ func (t *Task) String() string {
 	return writer.String()
 }
 
+// preRun takes care of adding eventual variables
+// TODO add some default variable
+func (t *Task) preRunAddVars(vars []Var) {
+
+	for _, variable := range vars {
+		for _, command := range t.Command {
+			command = strings.Replace(
+				command,
+				variable.ToReplacer(),
+				variable.Value,
+				-1)
+		}
+	}
+}
+
+func (t *Task) preRunGetVars() ([]Var, error) {
+	return ReadVars(path.Join(t.Dir, VarFileName))
+}
+
+func (t *Task) preRun() error {
+	if t.Dir != "" {
+		vars, err := t.preRunGetVars()
+		if err != nil {
+			return err
+		}
+		t.preRunAddVars(vars)
+	}
+	return nil
+}
+
 // Run runs the task in a non-blocking way
 // returning the RuntimeTaskInfo associated with.
 func (t *Task) Run() (*RuntimeTaskInfo, error) {
+
+	if err := t.preRun(); err != nil {
+		return nil, err
+	}
+
 	commands := t.Command
 
 	var cmd *exec.Cmd

@@ -24,6 +24,9 @@ import (
 const (
 	// SyntaxError is the prefix of every VarReadingError.
 	SyntaxError = "Syntax error at line "
+
+	// VarFileName is the name of the var file.
+	VarFileName = ".taskvar"
 )
 
 // VarReadingError is thrown when there's an error parsing
@@ -40,6 +43,12 @@ func (e VarReadingError) Error() string {
 // Var wraps a variable
 type Var struct {
 	Name, Value string
+}
+
+// ToReplacer returns the variable name in the format
+// used for substitution.
+func (v *Var) ToReplacer() string {
+	return fmt.Sprintf("${%s}", v.Name)
 }
 
 func (v *Var) cleanAndCheck() error {

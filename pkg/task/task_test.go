@@ -40,6 +40,12 @@ type taskTestCase struct {
 	expectedCommand []string
 }
 
+type taskExpansionTestCase struct {
+	task            Task
+	vars            []Var
+	expectedCommand []string
+}
+
 var testEcho = taskTestCase{
 	task: Task{
 		Name: "task1",
@@ -132,6 +138,53 @@ func (test *taskTestCase) doTest(t *testing.T) {
 
 func TestTasks(t *testing.T) {
 	for _, testCase := range allTests {
+		testCase.doTest(t)
+	}
+}
+
+var allExpansionTest = []taskExpansionTestCase{
+	{
+		task: Task{
+			Command: []string{
+				"tar",
+				"-cjf",
+				"${current_dir}",
+				"${old_dir}",
+				"${tar_flags}",
+			},
+		},
+		vars: []Var{
+			{
+				Name:  "current_dir",
+				Value: "/root",
+			}, {
+				Name:  "old_dir",
+				Value: "/tmp",
+			}, {
+				Name:  "tar_flags",
+				Value: "-xfzabc",
+			},
+		},
+		expectedCommand: []string{
+			"tar",
+			"-cjf",
+			"/root",
+			"/tmp",
+			"-xfzabc",
+		},
+	},
+}
+
+func (test *taskExpansionTestCase) doTest(t *testing.T) {
+	test.task.preRunAddVars(test.vars)
+	if reflect.DeepEqual(test.task.Command, test.expectedCommand) {
+		t.Errorf("Wrong expansion:\ngot: %v\nexpected: %v\n",
+			test.task.Command, test.expectedCommand)
+	}
+}
+
+func TestExpandTask(t *testing.T) {
+	for _, testCase := range allExpansionTest {
 		testCase.doTest(t)
 	}
 }
