@@ -15,6 +15,8 @@ package task
 
 import (
 	"bufio"
+	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -27,10 +29,12 @@ type varStrTestCase struct {
 	expectedError VarReadingError
 }
 
-func (v *varStrTestCase) doTest(t *testing.T) {
-	reader := bufio.NewReader(strings.NewReader(strings.Join(v.input, "\n")))
+type varFileTestCase struct {
+	varStrTestCase
+	file string
+}
 
-	result, err := readVarsFrom(reader)
+func (v *varStrTestCase) manageResult(result []Var, err error, t *testing.T) {
 	if v.withError {
 		if err == nil {
 			t.Errorf("Expected error but got none")
@@ -48,6 +52,33 @@ func (v *varStrTestCase) doTest(t *testing.T) {
 				result, v.expected)
 		}
 	}
+}
+
+func (v *varStrTestCase) doTest(t *testing.T) {
+	reader := bufio.NewReader(strings.NewReader(strings.Join(v.input, "\n")))
+
+	result, err := readVarsFrom(reader)
+	v.manageResult(result, err, t)
+}
+
+func (v *varFileTestCase) doTest(t *testing.T) {
+	file, err := os.Create(v.file)
+	if err != nil {
+		t.Fatalf("Cannot create file: %s", err.Error())
+	}
+	for _, variable := range v.varStrTestCase.input {
+		if _, err = fmt.Fprintf(file, "%s\n", variable); err != nil {
+			t.Errorf("Cannot write to file: %s", err.Error())
+		}
+	}
+	if file.Close() != nil {
+		t.Errorf("Fail to close the file: %s", err.Error())
+	}
+
+	result, err := ReadVars(v.file)
+	v.manageResult(result, err, t)
+
+	os.Remove(file.Name())
 }
 
 var inputOk = varStrTestCase{
@@ -91,13 +122,29 @@ var inputNameSpaceError = varStrTestCase{
 	},
 }
 
-var allInputs = []varStrTestCase{
+var strAllInputs = []varStrTestCase{
 	inputOk,
 	inputNameSpaceError,
 }
 
+var fileAllInputs = []varFileTestCase{
+	{
+		varStrTestCase: inputOk,
+		file:           "input_ok.vars",
+	}, {
+		varStrTestCase: inputNameSpaceError,
+		file:           "input_not_ok.vars",
+	},
+}
+
 func TestVarsFromStr(t *testing.T) {
-	for _, testCase := range allInputs {
+	for _, testCase := range strAllInputs {
+		testCase.doTest(t)
+	}
+}
+
+func TestVarsFromFile(t *testing.T) {
+	for _, testCase := range fileAllInputs {
 		testCase.doTest(t)
 	}
 }
