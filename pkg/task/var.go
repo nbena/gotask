@@ -21,27 +21,43 @@ import (
 	"strings"
 )
 
+const (
+	// SyntaxError is the prefix of every VarReadingError.
+	SyntaxError = "Syntax error at line "
+)
+
+// VarReadingError is thrown when there's an error parsing
+// vars file.
+type VarReadingError struct {
+	Line int
+	Desc string
+}
+
+func (e VarReadingError) Error() string {
+	return fmt.Sprintf(SyntaxError+": %d, %s", e.Line, e.Desc)
+}
+
 // Var wraps a variable
 type Var struct {
 	Name, Value string
 }
 
 func (v *Var) cleanAndCheck() error {
+
+	v.Name = strings.TrimLeft(v.Name, " ")
+	v.Name = strings.TrimRight(v.Name, " ")
+
 	if strings.Index(v.Name, " ") != -1 {
-		return fmt.Errorf("Syntax error near: %s, try remove spaces", v.Name)
+		return VarReadingError{
+			// Line: line,
+			Desc: fmt.Sprintf("near: %s, try remove spaces", v.Name),
+		}
+		// return fmt.Errorf("Syntax error near: %s, try remove spaces", v.Name)
 	}
 
 	v.Value = strings.TrimLeft(v.Value, " ")
 	v.Value = strings.TrimRight(v.Value, " ")
 
-	index1 := strings.Index(v.Value, "\"")
-	index2 := strings.LastIndex(v.Value, "\"")
-
-	// remove ""
-	if index1 == 0 && index2 == len(v.Value)-1 {
-		v.Value = strings.TrimLeft(v.Value, "\"")
-		v.Value = strings.TrimRight(v.Value, "\"")
-	}
 	return nil
 }
 
@@ -71,6 +87,7 @@ func readVarsFrom(in *bufio.Reader) ([]Var, error) {
 	lineCount = 1
 	for loop {
 		line, _, err = in.ReadLine()
+
 		if err != nil {
 			loop = false
 			if err == io.EOF {
@@ -81,10 +98,13 @@ func readVarsFrom(in *bufio.Reader) ([]Var, error) {
 			break
 		}
 		strLine = string(line)
-		strLine = strings.TrimLeft(strLine, " ")
+		// strLine = strings.TrimLeft(strLine, " ")
 
 		if strings.Index(strLine, ":") == -1 {
-			err = fmt.Errorf("Syntax error at line %d", lineCount)
+			err = VarReadingError{
+				Line: lineCount,
+				Desc: "missing ':'",
+			}
 			loop = false
 			break
 		}
@@ -92,7 +112,6 @@ func readVarsFrom(in *bufio.Reader) ([]Var, error) {
 		unparsedVar = strings.Split(strLine, ":")
 		currentVar, err = NewTaskVar(unparsedVar[0], unparsedVar[1])
 		if err != nil {
-			err = fmt.Errorf("%s at line %d", err.Error(), lineCount)
 			loop = false
 			break
 		} else {
@@ -100,6 +119,12 @@ func readVarsFrom(in *bufio.Reader) ([]Var, error) {
 		}
 	}
 
+	// type assertion doesn't work inside the loop
+	// so call here
+	if errMod, ok := err.(VarReadingError); ok {
+		errMod.Line = lineCount
+		return nil, errMod
+	}
 	return vars, err
 }
 
