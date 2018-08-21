@@ -14,6 +14,9 @@
 package server
 
 import (
+	"encoding/json"
+	"log"
+	"net/http"
 	"strings"
 
 	"github.com/nbena/gotask/pkg/req"
@@ -83,4 +86,32 @@ func (t *TaskServer) handleCompletedPoll(
 			Error:   errStr,
 		},
 	}
+}
+
+func encodeWithError(w http.ResponseWriter, okStatus int, input interface{}) {
+
+	data, err := json.Marshal(input)
+	if err != nil {
+		writeError(w, err.Error(), true, http.StatusInternalServerError)
+	} else {
+		w.WriteHeader(okStatus)
+		w.Header().Add("Content-type", "application/json, charset=utf-8")
+		if _, err := w.Write(data); err != nil {
+			log.Printf("Write error: %s\n", err.Error())
+		}
+	}
+}
+
+func writeError(w http.ResponseWriter, msg string, addContentType bool,
+	status int) {
+	w.WriteHeader(status)
+
+	if addContentType {
+		w.Header().Add("Content-type", "application/json, charset=utf-8")
+	}
+
+	encoder := json.NewEncoder(w)
+	encoder.Encode(req.ErrorMessageResponse{
+		Error: msg,
+	})
 }

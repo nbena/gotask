@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/nbena/gotask/pkg/task"
@@ -56,7 +57,8 @@ func NewServer(config *Config) (*TaskServer, error) {
 	}
 
 	taskMap := TaskMap{
-		tasks: make(map[string]task.Task),
+		tasks:   make(map[string]task.Task),
+		RWMutex: &sync.RWMutex{},
 	}
 
 	if err = taskMap.ReadTasks(config.TaskFile, false); err != nil {
@@ -67,9 +69,11 @@ func NewServer(config *Config) (*TaskServer, error) {
 		taskMap: taskMap,
 		pendingTasks: longRunningTasksMap{
 			taskMap: make(map[string]task.RuntimeTaskInfo),
+			RWMutex: &sync.RWMutex{},
 		},
 		completedTasks: longRunningTasksMap{
 			taskMap: make(map[string]task.RuntimeTaskInfo),
+			RWMutex: &sync.RWMutex{},
 		},
 		taskDoneChan: make(chan *task.CmdDoneChan, config.InternalChanSize),
 		taskErrChan:  make(chan *task.CmdDoneChan, config.InternalChanSize),
@@ -113,6 +117,8 @@ func (t *TaskServer) Run() {
 	}()
 
 	<-t.serverCloseChan
+	t.httpServer.Close()
+	t.listener.Close()
 }
 
 // type taskID struct {

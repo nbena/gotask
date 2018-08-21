@@ -64,7 +64,7 @@ func (t *TaskMap) ReadTasks(path string, empty bool) error {
 	var receiver []task.Task
 	decoder := json.NewDecoder(file)
 
-	if err = decoder.Decode(receiver); err != nil {
+	if err = decoder.Decode(&receiver); err != nil {
 		return err
 	}
 

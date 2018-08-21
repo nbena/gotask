@@ -22,18 +22,6 @@ import (
 	"github.com/nbena/gotask/pkg/task"
 )
 
-func writeError(w http.ResponseWriter, msg string, addContentType bool,
-	status int) {
-	if addContentType {
-		w.Header().Add("Content-type", "application/json, charset=utf-8")
-	}
-	w.WriteHeader(status)
-	encoder := json.NewEncoder(w)
-	encoder.Encode(req.ErrorMessageResponse{
-		Error: msg,
-	})
-}
-
 // refresh
 func (t *TaskServer) refresh(w http.ResponseWriter, r *http.Request) {
 
@@ -47,8 +35,7 @@ func (t *TaskServer) refresh(w http.ResponseWriter, r *http.Request) {
 // list
 func (t *TaskServer) list(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Add("Content-type", "application/json, charset=utf-8")
-	w.WriteHeader(http.StatusNoContent)
+	// w.Header().Add("Content-type", "application/json, charset=utf-8")
 
 	t.taskMap.RLock()
 	receiver := req.NewListMessageResponse(len(t.taskMap.tasks))
@@ -59,15 +46,14 @@ func (t *TaskServer) list(w http.ResponseWriter, r *http.Request) {
 		i++
 	}
 
-	encoder := json.NewEncoder(w)
-	encoder.Encode(receiver)
+	encodeWithError(w, http.StatusOK, receiver)
 	t.taskMap.RUnlock()
 }
 
 // execute
 func (t *TaskServer) execute(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Add("Content-type", "application/json, charset=utf-8")
+	// w.Header().Add("Content-type", "application/json, charset=utf-8")
 
 	decoder := json.NewDecoder(r.Body)
 	var req req.ExecuteMessageRequest
@@ -104,14 +90,13 @@ func (t *TaskServer) execute(w http.ResponseWriter, r *http.Request) {
 		msg = t.handleExecuteShortTask(*runtimeTask)
 	}
 
-	encoder := json.NewEncoder(w)
-	encoder.Encode(msg)
+	encodeWithError(w, http.StatusOK, msg)
 }
 
 // poll
 func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Add("Content-type", "application/json, charset=utf-8")
+	// w.Header().Add("Content-type", "application/json, charset=utf-8")
 
 	q := r.URL.Query()
 	taskID := q.Get("id")
@@ -156,6 +141,5 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 		t.completedTasks.Unlock()
 	}
 
-	encoder := json.NewEncoder(w)
-	encoder.Encode(msg)
+	encodeWithError(w, http.StatusOK, msg)
 }
