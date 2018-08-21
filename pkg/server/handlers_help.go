@@ -25,8 +25,11 @@ import (
 
 func (t *TaskServer) handleExecuteLongTask(runtimeTask task.RuntimeTaskInfo) *req.LongRunningTaskResponse {
 	// grabbing a new ID for this runtime task
+	// t.pendingTasks.Lock()
+	// log.Printf("Wait for lock")
+	// id := uniqueID(t.pendingTasks.taskMap)
+	id := uniqueID2()
 	t.pendingTasks.Lock()
-	id := uniqueID(t.pendingTasks.taskMap)
 	t.pendingTasks.taskMap[id] = runtimeTask
 	t.pendingTasks.Unlock()
 

@@ -14,13 +14,18 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"reflect"
+	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/nbena/gotask/pkg/req"
 
@@ -75,11 +80,13 @@ func (s *serverTestCase) end(t *testing.T) {
 	}
 }
 
-func (s *serverTestCase) request(method, postfix string, expectedStatus int, t *testing.T) *http.Response {
+func (s *serverTestCase) request(method, postfix string,
+	expectedStatus int, body io.ReadCloser,
+	t *testing.T) *http.Response {
 
 	uri := fmt.Sprintf("http://%s:%d/%s", s.config.ListenAddr, s.config.ListenPort, postfix)
 
-	req, err := http.NewRequest(method, uri, nil)
+	req, err := http.NewRequest(method, uri, body)
 	if err != nil {
 		t.Errorf("Error in preparing request: %s\n", err.Error())
 		return nil
@@ -102,7 +109,7 @@ func (s *serverTestCase) request(method, postfix string, expectedStatus int, t *
 
 func (s *serverTestCase) refresh(t *testing.T) {
 
-	resp := s.request("GET", "refresh", http.StatusNoContent, t)
+	resp := s.request("GET", "refresh", http.StatusNoContent, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -111,13 +118,14 @@ func (s *serverTestCase) refresh(t *testing.T) {
 
 func (s *serverTestCase) list(print bool, t *testing.T) {
 
-	resp := s.request("GET", "list", http.StatusOK, t)
+	resp := s.request("GET", "list", http.StatusOK, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
 	}
 
 	body := resp.Body
+	defer resp.Body.Close()
 	var receiver req.ListMessageResponse
 
 	decoder := json.NewDecoder(body)
@@ -129,8 +137,117 @@ func (s *serverTestCase) list(print bool, t *testing.T) {
 		fmt.Printf("%v\n", receiver.Tasks)
 	}
 
-	if !reflect.DeepEqual(receiver.Tasks, s.tasks) {
+	count := 0
+	for _, task := range s.tasks {
+		for _, gotTask := range receiver.Tasks {
+			if reflect.DeepEqual(task, gotTask) {
+				count++
+			}
+		}
+	}
+	// if !reflect.DeepEqual(receiver.Tasks, s.tasks) {
+	// 	t.Errorf("/list failed:\ngot: %v\nexpected: %v\n", receiver.Tasks, s.tasks)
+	// }
+	if count != len(s.tasks) {
 		t.Errorf("/list failed:\ngot: %v\nexpected: %v\n", receiver.Tasks, s.tasks)
+	}
+}
+
+func (s *serverTestCase) poll(id string, expectedStatus int, t *testing.T) {
+
+	resp := s.request("GET", "poll?id="+id, expectedStatus, nil, t)
+	if resp == nil {
+		t.Fatalf("Impossible to do the request\n")
+	}
+
+	if expectedStatus == http.StatusNotFound {
+		return
+	}
+
+	respBody := resp.Body
+	defer respBody.Close()
+
+	data, err := ioutil.ReadAll(respBody)
+	if err != nil {
+		t.Errorf("Fail to get the body: %s\n", err.Error())
+		return
+	}
+
+	var receiver interface{}
+	if strings.Index(string(data), "Completed") != -1 {
+		receiver = req.PollStatusCompletedResponse{}
+		if err := json.Unmarshal(data, &receiver); err != nil {
+			t.Errorf("Error in completed unmarshal: %s\n", err.Error())
+		}
+	} else {
+		receiver = req.PollStatusInProgressResponse{}
+		if err := json.Unmarshal(data, &receiver); err != nil {
+			t.Errorf("Error in in-progress unmarshal: %s\n", err.Error())
+		}
+
+		time.Sleep(100 * time.Millisecond)
+		// wait and re-query
+		s.poll(id, expectedStatus, t)
+	}
+
+	t.Logf("Response:\n%v\n", receiver)
+}
+
+func (s *serverTestCase) execute(i int, t *testing.T) {
+
+	data := req.ExecuteMessageRequest{
+		TaskName: s.tasks[i].Name,
+	}
+
+	dataEnc, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("Fail to marshal data: %s\n", err.Error())
+	}
+
+	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
+
+	resp := s.request("PUT", "exec", http.StatusOK, reqBody, t)
+	if resp == nil {
+		t.Fatalf("Impossible to do the request\n")
+	}
+
+	respBody := resp.Body
+
+	respData, err := ioutil.ReadAll(respBody)
+	defer respBody.Close()
+
+	if err != nil {
+		t.Errorf("Fail to get the body: %s\n", err.Error())
+		return
+	}
+
+	if s.tasks[i].Long {
+
+		var receiver req.LongRunningTaskResponse
+		if err := json.Unmarshal(respData, &receiver); err != nil {
+			t.Errorf("Fail to unmarshal data: %s\n", err.Error())
+			return
+		}
+
+		t.Logf("Long task ID: %s\n", receiver.ID)
+
+		// s.poll(receiver.ID, http.StatusOK, t)
+	} else {
+
+		var receiver req.ShortRunningTaskResponse
+		if err := json.Unmarshal(respData, &receiver); err != nil {
+			t.Errorf("Fail to unmarshal data: %s\n", err.Error())
+			return
+		}
+
+		if receiver.Error != "" {
+			t.Logf("Command ended with error: %s\n", receiver.Error)
+		}
+
+		if receiver.Output != s.outputs[i] {
+			t.Errorf("Mismatched output:\ngot: %s\nexpected: %s\n",
+				receiver.Output, s.outputs[i])
+		}
 	}
 }
 
@@ -187,6 +304,10 @@ func TestServer(t *testing.T) {
 		}
 		testCase.refresh(t)
 		testCase.list(true, t)
+		for i := range testCase.tasks {
+			t.Logf("Starting execute req for: %s\n", testCase.tasks[i].Name)
+			testCase.execute(i, t)
+		}
 		testCase.server.serverCloseChan <- syscall.SIGINT
 		testCase.server.taskManagerCloseChan <- syscall.SIGINT
 		testCase.end(t)

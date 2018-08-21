@@ -110,6 +110,7 @@ func (t *TaskServer) Run() {
 		if err := t.httpServer.Serve(t.listener); err != nil {
 			log.Printf("Error in listen: %s\n", err.Error())
 			t.taskManagerCloseChan <- syscall.SIGTERM
+			t.serverCloseChan <- syscall.SIGTERM
 		}
 	}()
 	go func() {

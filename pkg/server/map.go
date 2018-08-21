@@ -50,6 +50,20 @@ func uniqueID(toCheck map[string]task.RuntimeTaskInfo) string {
 	return id
 }
 
+func uniqueID2() string {
+	loop := true
+	var result string
+	source := make([]byte, 40)
+	for loop {
+		_, err := rand.Read(source)
+		if err == nil {
+			result = hex.EncodeToString(source)
+			loop = false
+		}
+	}
+	return result
+}
+
 // ReadTasks (re)fill the current map.
 // if empty, a new hash table will be created.
 func (t *TaskMap) ReadTasks(path string, empty bool) error {
