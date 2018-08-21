@@ -14,8 +14,6 @@
 package server
 
 import (
-	"fmt"
-	"log"
 	"strings"
 
 	"github.com/nbena/gotask/pkg/req"
@@ -38,8 +36,8 @@ func (t *TaskServer) handleExecuteLongTask(runtimeTask task.RuntimeTaskInfo) *re
 func (t *TaskServer) handleExecuteShortTask(runtimeTask task.RuntimeTaskInfo) *req.ShortRunningTaskResponse {
 	// wait for command to finish
 	id := "not random ID"
-	done := make(chan string)
-	errChan := make(chan [2]string)
+	done := make(chan *task.CmdDoneChan)
+	errChan := make(chan *task.CmdDoneChan)
 	runtimeTask.WaitPoll(id, done, errChan)
 
 	msg := &req.ShortRunningTaskResponse{
@@ -47,17 +45,12 @@ func (t *TaskServer) handleExecuteShortTask(runtimeTask task.RuntimeTaskInfo) *r
 	}
 
 	select {
-	case <-done:
+	case res := <-done:
 		if runtimeTask.ShowOutput {
-			out, err := runtimeTask.Output()
-			if err != nil {
-				msg.Error = fmt.Sprintf("Fail to get process output: %s", err.Error())
-			} else {
-				msg.Output = string(out)
-			}
+			msg.Output = res.Output
 		}
-	case errDesc := <-errChan:
-		msg.Error = fmt.Sprintf("ERROR %s", errDesc[1])
+	case res := <-errChan:
+		msg.Error = res.Error
 	}
 
 	return msg
@@ -66,19 +59,19 @@ func (t *TaskServer) handleExecuteShortTask(runtimeTask task.RuntimeTaskInfo) *r
 func (t *TaskServer) handleCompletedPoll(
 	taskID string,
 	taskInfo task.RuntimeTaskInfo) *req.PollStatusCompletedResponse {
-	var err error
 	outStr := ""
 	errStr := ""
 	if taskInfo.ShowOutput {
-		if outStr, err = taskInfo.StdoutStr(); err != nil {
-			errStr = fmt.Sprintf("Fail to get STOUT: %s", err.Error())
-			log.Printf("Error in get STDOUT: %s", err.Error())
-		}
+		// if outStr, err = taskInfo.StdoutStr(); err != nil {
+		// 	errStr = fmt.Sprintf("Fail to get STOUT: %s", err.Error())
+		// 	log.Printf("Error in get STDOUT: %s", err.Error())
+		// }
+		outStr = taskInfo.Output
 	}
+	errStr = taskInfo.Error
 
-	if errStr, err = taskInfo.StderrStr(); err != nil {
-		log.Printf("Error in get STDERR: %s", err.Error())
-	}
+	delete(t.completedTasks.taskMap, taskID)
+
 	return &req.PollStatusCompletedResponse{
 		PollStatusInProgressResponse: req.PollStatusInProgressResponse{
 			ID:     taskID,

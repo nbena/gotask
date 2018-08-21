@@ -51,15 +51,11 @@ func (t *TaskServer) list(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 
 	t.taskMap.RLock()
-	receiver := make([]taskID, len(t.taskMap.tasks))
+	receiver := req.NewListMessageResponse(len(t.taskMap.tasks))
 
 	i := 0
-	for key, value := range t.taskMap.tasks {
-		task := taskID{
-			Task: value,
-			ID:   key,
-		}
-		receiver[i] = task
+	for _, value := range t.taskMap.tasks {
+		receiver.Tasks[i] = value
 		i++
 	}
 
@@ -133,15 +129,18 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 	t.pendingTasks.RUnlock()
 	if !ok {
 
-		t.completedTasks.RLock()
+		// we need a complete lock over the completed tasks map
+		// because we'll then need to remove it.
+		t.completedTasks.Lock()
 		taskInfo, ok = t.completedTasks.taskMap[taskID]
-		t.completedTasks.RUnlock()
+		// t.completedTasks.RUnlock()
 	} else {
 		inPending = true
 	}
 
 	if !ok {
 		writeError(w, fmt.Sprintf("Task %s not found", taskID), false, http.StatusNotFound)
+		t.completedTasks.Unlock()
 		return
 	}
 
@@ -154,6 +153,7 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		msg = t.handleCompletedPoll(taskID, taskInfo)
+		t.completedTasks.Unlock()
 	}
 
 	encoder := json.NewEncoder(w)

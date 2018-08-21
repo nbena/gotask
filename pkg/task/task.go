@@ -26,32 +26,38 @@ import (
 
 // EnvVar are the env to be used in a Task.
 type EnvVar struct {
-	Key, Value string
+	Name  string `json:"name"`
+	Value string `json:"val"`
 }
 
 func (e *EnvVar) String() string {
-	return fmt.Sprintf("%s=%s", e.Key, e.Value)
+	return fmt.Sprintf("%s=%s", e.Name, e.Value)
 }
 
 // Task wraps all info about a task to run.
 type Task struct {
 	// A unique name
-	Name string
+	Name string `json:"name"`
 
 	// the command to run
-	Command []string
+	Command []string `json:"command"`
 
 	// optional, the directory in which to run it
-	Dir string
+	Dir string `json:"dir"`
 
 	// does it takes a long?
-	Long bool
+	Long bool `json:"isLong"`
 
 	// you want the output of the command?
-	ShowOutput bool
+	ShowOutput bool `json:"showOutput"`
 
 	// env
-	Env []EnvVar
+	Env []EnvVar `json:"env"`
+
+	// run using a shell? which one
+	// considered only if not empty
+	// the option '-c' will be then used
+	Shell string `json:"shell"`
 }
 
 // RuntimeTaskInfo keeps only the necessary info
@@ -68,6 +74,21 @@ type RuntimeTaskInfo struct {
 	// pipe for stderr
 	ErrPipe io.ReadCloser
 	*exec.Cmd
+
+	// these are set after the call to wait
+	// by the channel receiver because
+	// this object is in a table that may be
+	// accessed at the same time
+	Output string
+	Error  string
+}
+
+// CmdDoneChan is the struct written on the 'done' channel.
+// It is used on 'err' chan too.
+type CmdDoneChan struct {
+	Output string
+	Error  string
+	ID     string
 }
 
 // WaitPoll waits the command to complete,
@@ -75,16 +96,42 @@ type RuntimeTaskInfo struct {
 // Any error will be reported to err.
 func (r *RuntimeTaskInfo) WaitPoll(
 	id string,
-	done chan<- string,
-	err chan [2]string) {
+	doneChan chan<- *CmdDoneChan,
+	errChan chan<- *CmdDoneChan) {
 
 	go func() {
-		if waitErr := r.Wait(); waitErr != nil {
+		// we have to read output BEFORE call to Wait()
+		outStr, err := internalPipeToStr(r.OutPipe)
+		if err != nil {
+			errChan <- &CmdDoneChan{
+				ID:    id,
+				Error: fmt.Sprintf("Fail to get STDOUT: %s\n", err.Error()),
+			}
+		}
+
+		// read error
+		errStr, err := internalPipeToStr(r.ErrPipe)
+		if err != nil {
+			errChan <- &CmdDoneChan{
+				ID:    id,
+				Error: fmt.Sprintf("Fail to get STDERR: %s\n", err.Error()),
+			}
+		}
+
+		// not wait
+		if err = r.Wait(); err != nil {
 			r.EndAt = time.Now()
-			err <- [2]string{waitErr.Error(), id}
+			errChan <- &CmdDoneChan{
+				ID:    id,
+				Error: err.Error(),
+			}
 		} else {
 			r.EndAt = time.Now()
-			done <- id
+			doneChan <- &CmdDoneChan{
+				ID:     id,
+				Output: outStr,
+				Error:  errStr,
+			}
 		}
 	}()
 }
@@ -98,14 +145,14 @@ func internalPipeToStr(pipe io.ReadCloser) (string, error) {
 }
 
 // StdoutStr returns the output in string format
-func (r *RuntimeTaskInfo) StdoutStr() (string, error) {
-	return internalPipeToStr(r.OutPipe)
-}
+// func (r *RuntimeTaskInfo) StdoutStr() (string, error) {
+// 	return internalPipeToStr(r.OutPipe)
+// }
 
 // StderrStr returns the output in string format
-func (r *RuntimeTaskInfo) StderrStr() (string, error) {
-	return internalPipeToStr(r.ErrPipe)
-}
+// func (r *RuntimeTaskInfo) StderrStr() (string, error) {
+// 	return internalPipeToStr(r.ErrPipe)
+// }
 
 func (t *Task) String() string {
 	var writer strings.Builder
@@ -120,9 +167,17 @@ func (t *Task) String() string {
 func (t *Task) Run() (*RuntimeTaskInfo, error) {
 	commands := t.Command
 
-	// TODO add var parsing
+	var cmd *exec.Cmd
 
-	cmd := exec.Command(commands[0], commands[1:]...)
+	if t.Shell != "" {
+		baseShell, err := exec.LookPath(t.Shell)
+		if err != nil {
+			return nil, err
+		}
+		cmd = exec.Command(baseShell, "-c", strings.Join(commands, " "))
+	} else {
+		cmd = exec.Command(commands[0], commands[1:]...)
+	}
 
 	// now add other info if needed
 	if len(t.Env) > 0 {

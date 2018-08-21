@@ -13,6 +13,8 @@
 
 package req
 
+import "github.com/nbena/gotask/pkg/task"
+
 // here definition of Requests/Responses.
 
 // ExecuteMessageRequest represents a /POST request execution
@@ -60,4 +62,17 @@ type PollStatusInProgressResponse struct {
 type PollStatusCompletedResponse struct {
 	PollStatusInProgressResponse
 	ShortRunningTaskResponse
+}
+
+// ListMessageResponse is returned upon a /list request.
+type ListMessageResponse struct {
+	Tasks []task.Task `json:"tasks"`
+}
+
+// NewListMessageResponse returns a new struct with the slice initalized
+// to the proper length.
+func NewListMessageResponse(length int) ListMessageResponse {
+	return ListMessageResponse{
+		Tasks: make([]task.Task, length),
+	}
 }

@@ -32,8 +32,8 @@ type TaskServer struct {
 	pendingTasks   longRunningTasksMap
 	completedTasks longRunningTasksMap
 
-	completeChan chan string
-	errChan      chan [2]string
+	taskDoneChan chan *task.CmdDoneChan
+	taskErrChan  chan *task.CmdDoneChan
 
 	config *RuntimeConfig
 
@@ -71,8 +71,8 @@ func NewServer(config *Config) (*TaskServer, error) {
 		completedTasks: longRunningTasksMap{
 			taskMap: make(map[string]task.RuntimeTaskInfo),
 		},
-		completeChan: make(chan string, config.InternalChanSize),
-		errChan:      make(chan [2]string, config.InternalChanSize),
+		taskDoneChan: make(chan *task.CmdDoneChan, config.InternalChanSize),
+		taskErrChan:  make(chan *task.CmdDoneChan, config.InternalChanSize),
 		config: &RuntimeConfig{
 			taskFilePath: config.TaskFile,
 			logRequests:  config.LogRequests,
@@ -115,21 +115,25 @@ func (t *TaskServer) Run() {
 	<-t.serverCloseChan
 }
 
-type taskID struct {
-	task.Task
-	ID string
-}
+// type taskID struct {
+// 	task.Task
+// 	ID string
+// }
 
-func (t *TaskServer) moveTasks(id string, unlockCompleted bool) task.RuntimeTaskInfo {
+func (t *TaskServer) moveTasks(res *task.CmdDoneChan, unlockCompleted bool) task.RuntimeTaskInfo {
 	// first remove from the pending map
 	t.pendingTasks.Lock()
-	old := t.pendingTasks.taskMap[id]
-	delete(t.pendingTasks.taskMap, id)
+	old := t.pendingTasks.taskMap[res.ID]
+	delete(t.pendingTasks.taskMap, res.ID)
 	t.pendingTasks.Unlock()
+
+	// passing the results
+	old.Output = res.Output
+	old.Error = res.Error
 
 	// the move to the complete map
 	t.completedTasks.Lock()
-	t.completedTasks.taskMap[id] = old
+	t.completedTasks.taskMap[res.ID] = old
 
 	// the called may need to do other operation before unlock
 	if unlockCompleted {
@@ -145,16 +149,16 @@ func (t *TaskServer) taskManager() {
 	loop := true
 	for loop {
 		select {
-		case id := <-t.completeChan:
+		case res := <-t.taskDoneChan:
 			// ok the task is finished, we move it
 			// to the completed tasks map
-			t.moveTasks(id, true)
+			t.moveTasks(res, true)
 
-		case errDesc := <-t.errChan:
+		case res := <-t.taskErrChan:
 
-			old := t.moveTasks(errDesc[0], false)
+			t.moveTasks(res, true)
 			// we write the error to stderr
-			old.Cmd.Stderr.Write([]byte("ERROR IN WAIT: " + errDesc[1]))
+			// old.Cmd.Stderr.Write([]byte("ERROR IN WAIT: " + errDesc[1]))
 		// exit
 		case <-t.taskManagerCloseChan:
 			loop = false
