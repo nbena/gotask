@@ -25,6 +25,10 @@ import (
 // refresh
 func (t *TaskServer) refresh(w http.ResponseWriter, r *http.Request) {
 
+	if ok := checkMethod(http.MethodPost, w, r); !ok {
+		return
+	}
+
 	if err := t.taskMap.ReadTasks(t.config.taskFilePath, true); err != nil {
 		writeError(w, err.Error(), true, http.StatusInternalServerError)
 	} else {
@@ -35,7 +39,9 @@ func (t *TaskServer) refresh(w http.ResponseWriter, r *http.Request) {
 // list
 func (t *TaskServer) list(w http.ResponseWriter, r *http.Request) {
 
-	// w.Header().Add("Content-type", "application/json, charset=utf-8")
+	if ok := checkMethod(http.MethodGet, w, r); !ok {
+		return
+	}
 
 	var tasks []task.Task
 	t.taskMap.Range(func(key, value interface{}) bool {
@@ -52,7 +58,9 @@ func (t *TaskServer) list(w http.ResponseWriter, r *http.Request) {
 // execute
 func (t *TaskServer) execute(w http.ResponseWriter, r *http.Request) {
 
-	// w.Header().Add("Content-type", "application/json, charset=utf-8")
+	if ok := checkMethod(http.MethodPut, w, r); !ok {
+		return
+	}
 
 	decoder := json.NewDecoder(r.Body)
 	var req req.ExecuteMessageRequest
@@ -95,7 +103,9 @@ func (t *TaskServer) execute(w http.ResponseWriter, r *http.Request) {
 // poll
 func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 
-	// w.Header().Add("Content-type", "application/json, charset=utf-8")
+	if ok := checkMethod(http.MethodGet, w, r); !ok {
+		return
+	}
 
 	q := r.URL.Query()
 	taskID := q.Get("id")
@@ -144,6 +154,10 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 
 // add
 func (t *TaskServer) add(w http.ResponseWriter, r *http.Request) {
+
+	if ok := checkMethod(http.MethodPost, w, r); !ok {
+		return
+	}
 
 	addTaskReq := req.AddTaskRequest{}
 	decoder := json.NewDecoder(r.Body)

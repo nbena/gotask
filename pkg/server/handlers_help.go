@@ -15,6 +15,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -117,4 +118,14 @@ func writeError(w http.ResponseWriter, msg string, addContentType bool,
 	encoder.Encode(req.ErrorMessageResponse{
 		Error: msg,
 	})
+}
+
+func checkMethod(method string, w http.ResponseWriter, r *http.Request) bool {
+	ok := true
+	if r.Method != method {
+		writeError(w, fmt.Sprintf("Method %s not implemented", r.Method),
+			true, http.StatusNotImplemented)
+		ok = false
+	}
+	return ok
 }

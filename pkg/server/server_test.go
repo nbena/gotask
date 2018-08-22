@@ -112,7 +112,7 @@ func (s *serverTestCase) request(method, postfix string,
 
 func (s *serverTestCase) refresh(t *testing.T) {
 
-	resp := s.request("GET", "refresh", http.StatusNoContent, nil, t)
+	resp := s.request("POST", "refresh", http.StatusNoContent, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -275,7 +275,7 @@ func (s *serverTestCase) add(expectedStatus int, t *testing.T) {
 	}
 	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
 
-	s.request("post", "add", expectedStatus, reqBody, t)
+	s.request("POST", "add", expectedStatus, reqBody, t)
 
 	if expectedStatus == http.StatusConflict {
 		// nothing more to do
@@ -286,6 +286,9 @@ func (s *serverTestCase) add(expectedStatus int, t *testing.T) {
 	// but before wait.
 	time.Sleep(15 * time.Millisecond)
 	tasks := s.list(true, t)
+	if tasks == nil {
+		return
+	}
 
 	found := false
 	for _, gotTask := range tasks {
