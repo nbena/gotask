@@ -32,7 +32,7 @@ func (t *TaskServer) refresh(w http.ResponseWriter, r *http.Request) {
 	if err := t.taskMap.ReadTasks(t.config.taskFilePath, true); err != nil {
 		writeError(w, err.Error(), true, http.StatusInternalServerError)
 	} else {
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(StatusRefresh)
 	}
 }
 
@@ -52,7 +52,7 @@ func (t *TaskServer) list(w http.ResponseWriter, r *http.Request) {
 		Tasks: tasks,
 	}
 
-	encodeWithError(w, http.StatusOK, receiver)
+	encodeWithError(w, StatusList, receiver)
 }
 
 // execute
@@ -97,7 +97,7 @@ func (t *TaskServer) execute(w http.ResponseWriter, r *http.Request) {
 		msg = t.handleExecuteShortTask(*runtimeTask)
 	}
 
-	encodeWithError(w, http.StatusOK, msg)
+	encodeWithError(w, StatusExecute, msg)
 }
 
 // poll
@@ -149,7 +149,7 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 		t.completedTasks.Unlock()
 	}
 
-	encodeWithError(w, http.StatusOK, msg)
+	encodeWithError(w, StatusPoll, msg)
 }
 
 // add
@@ -169,9 +169,9 @@ func (t *TaskServer) add(w http.ResponseWriter, r *http.Request) {
 
 	if _, loaded := t.taskMap.LoadOrStore(addTaskReq.Task.Name, addTaskReq.Task); loaded {
 		writeError(w, "Another task with the same name is already present",
-			true, http.StatusConflict)
+			true, StatusAddConflict)
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(StatusAdd)
 }

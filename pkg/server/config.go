@@ -18,6 +18,13 @@ import (
 	"os"
 )
 
+const (
+	// DefaultAddr is the default listening address for the server.
+	DefaultAddr = "127.0.0.1"
+	// DefaultPort is the default listening port of the server.
+	DefaultPort = 7667
+)
+
 // Config is the configuration used by the server.
 type Config struct {
 	ListenAddr string `json:"listenAddr"`

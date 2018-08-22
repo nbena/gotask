@@ -112,7 +112,7 @@ func (s *serverTestCase) request(method, postfix string,
 
 func (s *serverTestCase) refresh(t *testing.T) {
 
-	resp := s.request("POST", "refresh", http.StatusNoContent, nil, t)
+	resp := s.request("POST", "refresh", StatusRefresh, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -121,7 +121,7 @@ func (s *serverTestCase) refresh(t *testing.T) {
 
 func (s *serverTestCase) list(print bool, t *testing.T) []task.Task {
 
-	resp := s.request("GET", "list", http.StatusOK, nil, t)
+	resp := s.request("GET", "list", StatusList, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -211,7 +211,7 @@ func (s *serverTestCase) execute(i int, t *testing.T) {
 
 	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
 
-	resp := s.request("PUT", "exec", http.StatusOK, reqBody, t)
+	resp := s.request("PUT", "exec", StatusExecute, reqBody, t)
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
 	}
@@ -389,7 +389,8 @@ func TestServer(t *testing.T) {
 			t.Logf("Starting execute req for: %s\n", testCase.tasks[i].Name)
 			testCase.execute(i, t)
 		}
-		testCase.add(http.StatusNoContent, t)
+		testCase.add(StatusAdd, t)
+		testCase.add(http.StatusConflict, t)
 		testCase.server.serverCloseChan <- syscall.SIGINT
 		testCase.server.taskManagerCloseChan <- syscall.SIGINT
 		testCase.end(t)

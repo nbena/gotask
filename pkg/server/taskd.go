@@ -26,6 +26,23 @@ import (
 	"github.com/nbena/gotask/pkg/task"
 )
 
+const (
+	MethodList    = http.MethodGet
+	MethodRefresh = http.MethodPost
+	MethodExecute = http.MethodPut
+	MethodPoll    = http.MethodGet
+	MethodAdd     = http.MethodPost
+
+	StatusList    = http.StatusOK
+	StatusRefresh = http.StatusNoContent
+	StatusExecute = http.StatusOK
+	StatusPoll    = http.StatusOK
+	StatusAdd     = http.StatusNoContent
+
+	StatusAddConflict = http.StatusConflict
+	// StatusNotFound    = http.StatusNotFound
+)
+
 // TaskServer is the HTTP server
 type TaskServer struct {
 	// server *http.ServerMux
