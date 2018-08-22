@@ -16,6 +16,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/nbena/gotask/pkg/req"
@@ -172,6 +173,12 @@ func (t *TaskServer) add(w http.ResponseWriter, r *http.Request) {
 			true, StatusAddConflict)
 		return
 	}
+
+	go func() {
+		if err := t.taskMap.Write(t.config.taskFilePath); err != nil {
+			log.Printf("Error write to file: %s\n", err.Error())
+		}
+	}()
 
 	w.WriteHeader(StatusAdd)
 }

@@ -73,10 +73,10 @@ type taskMap struct {
 // before the new filling process.
 func (m *taskMap) ReadTasks(path string, empty bool) error {
 	file, err := os.Open(path)
-
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	decoder := json.NewDecoder(file)
 	var receiver []task.Task
@@ -96,4 +96,28 @@ func (m *taskMap) ReadTasks(path string, empty bool) error {
 		}
 	}
 	return err
+}
+
+// Write writes the map to file.
+func (m *taskMap) Write(path string) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	var receiver []task.Task
+	m.Range(func(key, value interface{}) bool {
+		receiver = append(receiver, value.(task.Task))
+		return true
+	})
+	data, err := json.Marshal(receiver)
+	if err != nil {
+		return err
+	}
+
+	if _, err = file.Write(data); err != nil {
+		return err
+	}
+	return nil
 }
