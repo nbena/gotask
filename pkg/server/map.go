@@ -17,17 +17,12 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
 
 	"github.com/nbena/gotask/pkg/task"
 )
-
-// TaskMap wraps a map and RW lock.
-type TaskMap struct {
-	tasks map[string]task.Task
-	*sync.RWMutex
-}
 
 // uniqueID generated a pseudo-random ID
 // that is guaranteed to be unique for the given
@@ -64,40 +59,41 @@ func uniqueID2() string {
 	return result
 }
 
-// ReadTasks (re)fill the current map.
-// if empty, a new hash table will be created.
-func (t *TaskMap) ReadTasks(path string, empty bool) error {
+// map used for long-running tasks
+type longRunningTasksMap struct {
+	taskMap map[string]task.RuntimeTaskInfo
+	*sync.RWMutex
+}
 
+type taskMap struct {
+	*sync.Map
+}
+
+// ReadTasks fills the map. If empty is true, the map is emptied
+// before the new filling process.
+func (m *taskMap) ReadTasks(path string, empty bool) error {
 	file, err := os.Open(path)
-	defer file.Close()
 
 	if err != nil {
 		return err
 	}
 
-	var receiver []task.Task
 	decoder := json.NewDecoder(file)
+	var receiver []task.Task
 
 	if err = decoder.Decode(&receiver); err != nil {
 		return err
 	}
 
-	t.Lock()
-	defer t.Unlock()
-
 	if empty {
-		t.tasks = make(map[string]task.Task)
+		m.Map = &sync.Map{}
 	}
 
-	for _, task := range receiver {
-		t.tasks[task.Name] = task
+	for _, toAdd := range receiver {
+		if _, loaded := m.LoadOrStore(toAdd.Name, toAdd); loaded {
+			err = fmt.Errorf("Task already present: %s", toAdd.Name)
+			break
+		}
 	}
-
-	return nil
-}
-
-// map used for long-running tasks
-type longRunningTasksMap struct {
-	taskMap map[string]task.RuntimeTaskInfo
-	*sync.RWMutex
+	return err
 }

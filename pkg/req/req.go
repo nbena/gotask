@@ -69,10 +69,15 @@ type ListMessageResponse struct {
 	Tasks []task.Task `json:"tasks"`
 }
 
-// NewListMessageResponse returns a new struct with the slice initalized
-// to the proper length.
-func NewListMessageResponse(length int) ListMessageResponse {
-	return ListMessageResponse{
-		Tasks: make([]task.Task, length),
-	}
+// // NewListMessageResponse returns a new struct with the slice initalized
+// // to the proper length.
+// func NewListMessageResponse(length int) ListMessageResponse {
+// 	return ListMessageResponse{
+// 		Tasks: make([]task.Task, length),
+// 	}
+// }
+
+// AddTaskRequest is used to add a new task.
+type AddTaskRequest struct {
+	Task task.Task `json:"task"`
 }

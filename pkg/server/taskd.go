@@ -29,7 +29,7 @@ import (
 // TaskServer is the HTTP server
 type TaskServer struct {
 	// server *http.ServerMux
-	taskMap        TaskMap
+	taskMap        taskMap
 	pendingTasks   longRunningTasksMap
 	completedTasks longRunningTasksMap
 
@@ -56,9 +56,12 @@ func NewServer(config *Config) (*TaskServer, error) {
 		return nil, err
 	}
 
-	taskMap := TaskMap{
-		tasks:   make(map[string]task.Task),
-		RWMutex: &sync.RWMutex{},
+	// taskMap := TaskMap{
+	// 	tasks:   make(map[string]task.Task),
+	// 	RWMutex: &sync.RWMutex{},
+	// }
+	taskMap := taskMap{
+		Map: &sync.Map{},
 	}
 
 	if err = taskMap.ReadTasks(config.TaskFile, false); err != nil {
@@ -92,6 +95,7 @@ func NewServer(config *Config) (*TaskServer, error) {
 	mux.HandleFunc("/list", server.list)
 	mux.HandleFunc("/exec", server.execute)
 	mux.HandleFunc("/poll", server.poll)
+	mux.HandleFunc("/add", server.add)
 
 	server.httpServer = &http.Server{
 		Handler: mux,

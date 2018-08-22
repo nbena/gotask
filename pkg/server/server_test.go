@@ -38,6 +38,9 @@ type serverTestCase struct {
 	outputs []string
 	config  *Config
 	client  *http.Client
+
+	toAddConflict task.Task
+	toAdd         task.Task
 }
 
 // type serverTestCase struct {
@@ -116,7 +119,7 @@ func (s *serverTestCase) refresh(t *testing.T) {
 	}
 }
 
-func (s *serverTestCase) list(print bool, t *testing.T) {
+func (s *serverTestCase) list(print bool, t *testing.T) []task.Task {
 
 	resp := s.request("GET", "list", http.StatusOK, nil, t)
 
@@ -151,6 +154,8 @@ func (s *serverTestCase) list(print bool, t *testing.T) {
 	if count != len(s.tasks) {
 		t.Errorf("/list failed:\ngot: %v\nexpected: %v\n", receiver.Tasks, s.tasks)
 	}
+
+	return receiver.Tasks
 }
 
 func (s *serverTestCase) poll(id string, expectedStatus int, t *testing.T) {
@@ -251,6 +256,50 @@ func (s *serverTestCase) execute(i int, t *testing.T) {
 	}
 }
 
+func (s *serverTestCase) add(expectedStatus int, t *testing.T) {
+
+	toAdd := task.Task{}
+	if expectedStatus == http.StatusConflict {
+		toAdd = s.toAddConflict
+	} else if expectedStatus == http.StatusNoContent {
+		toAdd = s.toAdd
+	}
+
+	data := req.AddTaskRequest{
+		Task: toAdd,
+	}
+
+	dataEnc, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("Fail to marshal data: %s\n", err.Error())
+	}
+	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
+
+	s.request("post", "add", expectedStatus, reqBody, t)
+
+	if expectedStatus == http.StatusConflict {
+		// nothing more to do
+		return
+	}
+
+	// now issuing a list
+	// but before wait.
+	time.Sleep(15 * time.Millisecond)
+	tasks := s.list(true, t)
+
+	found := false
+	for _, gotTask := range tasks {
+		if gotTask.Name == s.toAdd.Name {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("Task add but not found")
+	}
+}
+
 var allTests = []serverTestCase{
 	{
 		tasks: []task.Task{
@@ -276,9 +325,17 @@ var allTests = []serverTestCase{
 			}, {
 				Name: "task3",
 				Command: []string{
-					"ls . | grep file1",
+					"ls | grep file1",
 				},
 				ShowOutput: true,
+				Long:       false,
+				Shell:      "bash",
+			}, {
+				Name: "task4",
+				Command: []string{
+					"rm file1",
+				},
+				ShowOutput: false,
 				Long:       false,
 				Shell:      "bash",
 			},
@@ -287,12 +344,33 @@ var allTests = []serverTestCase{
 			"hello",
 			"",
 			"file1\n",
+			"",
 		},
 		config: &Config{
 			ListenAddr:       "127.0.0.1",
 			ListenPort:       7879,
 			TaskFile:         "tasks.json",
 			InternalChanSize: 5,
+		},
+		toAddConflict: task.Task{
+			Name: "task4",
+			Command: []string{
+				"echo",
+				"go",
+			},
+			ShowOutput: true,
+			Long:       false,
+			Shell:      "bash",
+		},
+		toAdd: task.Task{
+			Name: "task5",
+			Command: []string{
+				"echo",
+				"go",
+			},
+			ShowOutput: true,
+			Long:       false,
+			Shell:      "bash",
 		},
 	},
 }
@@ -308,6 +386,7 @@ func TestServer(t *testing.T) {
 			t.Logf("Starting execute req for: %s\n", testCase.tasks[i].Name)
 			testCase.execute(i, t)
 		}
+		testCase.add(http.StatusNoContent, t)
 		testCase.server.serverCloseChan <- syscall.SIGINT
 		testCase.server.taskManagerCloseChan <- syscall.SIGINT
 		testCase.end(t)

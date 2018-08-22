@@ -37,17 +37,16 @@ func (t *TaskServer) list(w http.ResponseWriter, r *http.Request) {
 
 	// w.Header().Add("Content-type", "application/json, charset=utf-8")
 
-	t.taskMap.RLock()
-	receiver := req.NewListMessageResponse(len(t.taskMap.tasks))
-
-	i := 0
-	for _, value := range t.taskMap.tasks {
-		receiver.Tasks[i] = value
-		i++
+	var tasks []task.Task
+	t.taskMap.Range(func(key, value interface{}) bool {
+		tasks = append(tasks, value.(task.Task))
+		return true
+	})
+	receiver := req.ListMessageResponse{
+		Tasks: tasks,
 	}
 
 	encodeWithError(w, http.StatusOK, receiver)
-	t.taskMap.RUnlock()
 }
 
 // execute
@@ -63,14 +62,14 @@ func (t *TaskServer) execute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// now looking for the task in the map
-	t.taskMap.RLock()
-	taskToRun, ok := t.taskMap.tasks[req.TaskName]
+	toRun, ok := t.taskMap.Load(req.TaskName)
 	if !ok {
 		writeError(w, fmt.Sprintf("Task %s not found", req.TaskName),
-			false, http.StatusNotFound)
+			true, http.StatusNotFound)
 		return
 	}
-	t.taskMap.RUnlock()
+
+	taskToRun := toRun.(task.Task)
 
 	// now run the fucking task.
 	runtimeTask, err := taskToRun.Run()
@@ -101,7 +100,7 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	taskID := q.Get("id")
 	if taskID == "" {
-		writeError(w, "URI not valid", false, http.StatusBadRequest)
+		writeError(w, "URI not valid", true, http.StatusBadRequest)
 		return
 	}
 
@@ -118,13 +117,12 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 		// because we'll then need to remove it.
 		t.completedTasks.Lock()
 		taskInfo, ok = t.completedTasks.taskMap[taskID]
-		// t.completedTasks.RUnlock()
 	} else {
 		inPending = true
 	}
 
 	if !ok {
-		writeError(w, fmt.Sprintf("Task %s not found", taskID), false, http.StatusNotFound)
+		writeError(w, fmt.Sprintf("Task %s not found", taskID), true, http.StatusNotFound)
 		t.completedTasks.Unlock()
 		return
 	}
@@ -142,4 +140,24 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encodeWithError(w, http.StatusOK, msg)
+}
+
+// add
+func (t *TaskServer) add(w http.ResponseWriter, r *http.Request) {
+
+	addTaskReq := req.AddTaskRequest{}
+	decoder := json.NewDecoder(r.Body)
+
+	if err := decoder.Decode(&addTaskReq); err != nil {
+		writeError(w, err.Error(), true, http.StatusInternalServerError)
+		return
+	}
+
+	if _, loaded := t.taskMap.LoadOrStore(addTaskReq.Task.Name, addTaskReq.Task); loaded {
+		writeError(w, "Another task with the same name is already present",
+			true, http.StatusConflict)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
