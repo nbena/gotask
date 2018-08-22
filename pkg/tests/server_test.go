@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-package server
+package tests
 
 import (
 	"bytes"
@@ -21,52 +21,55 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"reflect"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/nbena/gotask/pkg/req"
+	"github.com/nbena/gotask/pkg/server"
 
 	"github.com/nbena/gotask/pkg/task"
 )
 
 type serverTestCase struct {
-	server  *TaskServer
+	server  *server.TaskServer
 	tasks   []task.Task
 	outputs []string
-	config  *Config
+	config  *server.Config
 	client  *http.Client
 
 	toAddConflict task.Task
 	toAdd         task.Task
 }
 
-// type serverTestCase struct {
-// 	server *TaskServer
-// }
-
-func (s *serverTestCase) startServer() error {
-
+func basicServerRun(config *server.Config, tasks []task.Task) (*server.TaskServer, error) {
 	// we write tasks and config to file
-	taskFile, err := os.Create(s.config.TaskFile)
+	taskFile, err := os.Create(config.TaskFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	encoder := json.NewEncoder(taskFile)
-	if encoder.Encode(s.tasks) != nil {
-		return err
+	if encoder.Encode(tasks) != nil {
+		return nil, err
 	}
 
 	taskFile.Close()
 
-	server, err := NewServer(s.config)
+	server, err := server.NewServer(config)
+	if err != nil {
+		return nil, err
+	}
+	return server, nil
+}
+
+func (s *serverTestCase) startServer() error {
+
+	server, err := basicServerRun(s.config, s.tasks)
 	if err != nil {
 		return err
 	}
-
 	s.client = &http.Client{}
 
 	s.server = server
@@ -75,12 +78,6 @@ func (s *serverTestCase) startServer() error {
 	}()
 
 	return nil
-}
-
-func (s *serverTestCase) end(t *testing.T) {
-	if err := os.Remove(s.config.TaskFile); err != nil {
-		t.Errorf("Error in deleting task file: %s\n", s.config.TaskFile)
-	}
 }
 
 func (s *serverTestCase) request(method, postfix string,
@@ -112,7 +109,7 @@ func (s *serverTestCase) request(method, postfix string,
 
 func (s *serverTestCase) refresh(t *testing.T) {
 
-	resp := s.request("POST", "refresh", StatusRefresh, nil, t)
+	resp := s.request("POST", "refresh", server.StatusRefresh, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -121,7 +118,7 @@ func (s *serverTestCase) refresh(t *testing.T) {
 
 func (s *serverTestCase) list(print bool, t *testing.T) []task.Task {
 
-	resp := s.request("GET", "list", StatusList, nil, t)
+	resp := s.request("GET", "list", server.StatusList, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -140,20 +137,7 @@ func (s *serverTestCase) list(print bool, t *testing.T) []task.Task {
 		fmt.Printf("%v\n", receiver.Tasks)
 	}
 
-	count := 0
-	for _, task := range s.tasks {
-		for _, gotTask := range receiver.Tasks {
-			if reflect.DeepEqual(task, gotTask) {
-				count++
-			}
-		}
-	}
-	// if !reflect.DeepEqual(receiver.Tasks, s.tasks) {
-	// 	t.Errorf("/list failed:\ngot: %v\nexpected: %v\n", receiver.Tasks, s.tasks)
-	// }
-	if count != len(s.tasks) {
-		t.Errorf("/list failed:\ngot: %v\nexpected: %v\n", receiver.Tasks, s.tasks)
-	}
+	tasksCheck(s.tasks, receiver.Tasks, t)
 
 	return receiver.Tasks
 }
@@ -211,7 +195,7 @@ func (s *serverTestCase) execute(i int, t *testing.T) {
 
 	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
 
-	resp := s.request("PUT", "exec", StatusExecute, reqBody, t)
+	resp := s.request("PUT", "exec", server.StatusExecute, reqBody, t)
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
 	}
@@ -303,53 +287,16 @@ func (s *serverTestCase) add(expectedStatus int, t *testing.T) {
 	}
 }
 
-var allTests = []serverTestCase{
+var serverTests = []serverTestCase{
 	{
-		tasks: []task.Task{
-			{
-				Name: "task1",
-				Command: []string{
-					"echo",
-					"-n",
-					"hello",
-				},
-				ShowOutput: true,
-				Long:       false,
-				Shell:      "bash",
-			}, {
-				Name: "task2",
-				Command: []string{
-					"touch",
-					"file1",
-				},
-				ShowOutput: false,
-				Long:       true,
-				Shell:      "bash",
-			}, {
-				Name: "task3",
-				Command: []string{
-					"ls | grep file1",
-				},
-				ShowOutput: true,
-				Long:       false,
-				Shell:      "bash",
-			}, {
-				Name: "task4",
-				Command: []string{
-					"rm file1",
-				},
-				ShowOutput: false,
-				Long:       false,
-				Shell:      "bash",
-			},
-		},
+		tasks: tasks,
 		outputs: []string{
 			"hello",
 			"",
 			"file1\n",
 			"",
 		},
-		config: &Config{
+		config: &server.Config{
 			ListenAddr:       "127.0.0.1",
 			ListenPort:       7879,
 			TaskFile:         "tasks.json",
@@ -365,34 +312,31 @@ var allTests = []serverTestCase{
 			Long:       false,
 			Shell:      "bash",
 		},
-		toAdd: task.Task{
-			Name: "task5",
-			Command: []string{
-				"echo",
-				"go",
-			},
-			ShowOutput: true,
-			Long:       false,
-			Shell:      "bash",
-		},
+		toAdd: taskToAdd,
 	},
 }
 
-func TestServer(t *testing.T) {
-	for _, testCase := range allTests {
+func (s *serverTest) runTest(t *testing.T) {
+	for _, testCase := range s.tests {
 		if err := testCase.startServer(); err != nil {
 			t.Errorf("Fail to start server: %s\n", err.Error())
 		}
 		testCase.refresh(t)
 		testCase.list(true, t)
 		for i := range testCase.tasks {
-			t.Logf("Starting execute req for: %s\n", testCase.tasks[i].Name)
 			testCase.execute(i, t)
 		}
-		testCase.add(StatusAdd, t)
+		testCase.add(server.StatusAdd, t)
 		testCase.add(http.StatusConflict, t)
-		testCase.server.serverCloseChan <- syscall.SIGINT
-		testCase.server.taskManagerCloseChan <- syscall.SIGINT
-		testCase.end(t)
+		testCase.server.ServerCloseChan <- syscall.SIGINT
+		// testCase.server.taskManagerCloseChan <- syscall.SIGINT
+		end(testCase.config, t)
 	}
+}
+
+func TestServer(t *testing.T) {
+	tests := &serverTest{
+		tests: serverTests,
+	}
+	tests.runTest(t)
 }

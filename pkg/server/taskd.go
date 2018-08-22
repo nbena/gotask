@@ -56,7 +56,7 @@ type TaskServer struct {
 	config *RuntimeConfig
 
 	taskManagerCloseChan chan os.Signal
-	serverCloseChan      chan os.Signal
+	ServerCloseChan      chan os.Signal
 
 	listener net.Listener
 
@@ -102,7 +102,7 @@ func NewServer(config *Config) (*TaskServer, error) {
 			logRequests:  config.LogRequests,
 		},
 		taskManagerCloseChan: make(chan os.Signal),
-		serverCloseChan:      make(chan os.Signal),
+		ServerCloseChan:      make(chan os.Signal),
 		listener:             listener,
 		// mux:                  http.NewServeMux(),
 	}
@@ -119,7 +119,7 @@ func NewServer(config *Config) (*TaskServer, error) {
 	}
 
 	signal.Notify(server.taskManagerCloseChan, syscall.SIGTERM, syscall.SIGSTOP, syscall.SIGINT)
-	signal.Notify(server.serverCloseChan, syscall.SIGTERM, syscall.SIGSTOP, syscall.SIGINT)
+	signal.Notify(server.ServerCloseChan, syscall.SIGTERM, syscall.SIGSTOP, syscall.SIGINT)
 
 	return server, nil
 }
@@ -131,14 +131,15 @@ func (t *TaskServer) Run() {
 		if err := t.httpServer.Serve(t.listener); err != nil {
 			log.Printf("Error in listen: %s\n", err.Error())
 			t.taskManagerCloseChan <- syscall.SIGTERM
-			t.serverCloseChan <- syscall.SIGTERM
+			t.ServerCloseChan <- syscall.SIGTERM
 		}
 	}()
 	go func() {
 		t.taskManager()
 	}()
 
-	<-t.serverCloseChan
+	<-t.ServerCloseChan
+	t.taskManagerCloseChan <- syscall.SIGTERM
 	t.httpServer.Close()
 	t.listener.Close()
 }
