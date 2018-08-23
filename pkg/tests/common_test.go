@@ -72,6 +72,14 @@ var taskToAdd = task.Task{
 	Shell:      "bash",
 }
 
+var taskToMod = task.Task{
+	Name:       taskToAdd.Name,
+	Command:    []string{"hello", "golang"},
+	ShowOutput: true,
+	Long:       false,
+	Shell:      "bash",
+}
+
 func end(config *server.Config, t *testing.T) {
 	if err := os.Remove(config.TaskFile); err != nil {
 		t.Errorf("Error in deleting task file: %s\n", config.TaskFile)
@@ -89,6 +97,20 @@ func tasksCheck(expected, got []task.Task, t *testing.T) {
 	}
 	if count != len(expected) {
 		t.Errorf("/list failed:\ngot: %v\nexpected: %v\n", got, expected)
+	}
+}
+
+func tasksIn(toAdd task.Task, tasks []task.Task, t *testing.T) {
+	found := false
+	for _, gotTask := range tasks {
+		if gotTask.Name == toAdd.Name {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Errorf("Task add but not found")
 	}
 }
 

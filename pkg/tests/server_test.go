@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"reflect"
 	"strings"
 	"syscall"
 	"testing"
@@ -41,6 +42,7 @@ type serverTestCase struct {
 
 	toAddConflict task.Task
 	toAdd         task.Task
+	toMod         task.Task
 }
 
 func basicServerRun(config *server.Config, tasks []task.Task) (*server.TaskServer, error) {
@@ -118,7 +120,7 @@ func (s *serverTestCase) refresh(t *testing.T) {
 
 func (s *serverTestCase) list(print bool, t *testing.T) []task.Task {
 
-	resp := s.request("GET", "list", server.StatusList, nil, t)
+	resp := s.request(server.MethodList, "list", server.StatusList, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -195,7 +197,7 @@ func (s *serverTestCase) execute(i int, t *testing.T) {
 
 	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
 
-	resp := s.request("PUT", "exec", server.StatusExecute, reqBody, t)
+	resp := s.request(server.MethodExecute, "exec", server.StatusExecute, reqBody, t)
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
 	}
@@ -240,15 +242,7 @@ func (s *serverTestCase) execute(i int, t *testing.T) {
 	}
 }
 
-func (s *serverTestCase) add(expectedStatus int, t *testing.T) {
-
-	toAdd := task.Task{}
-	if expectedStatus == http.StatusConflict {
-		toAdd = s.toAddConflict
-	} else if expectedStatus == http.StatusNoContent {
-		toAdd = s.toAdd
-	}
-
+func (s *serverTestCase) internalAdd(toAdd task.Task, t *testing.T) task.Task {
 	data := req.AddTaskRequest{
 		Task: toAdd,
 	}
@@ -259,31 +253,43 @@ func (s *serverTestCase) add(expectedStatus int, t *testing.T) {
 	}
 	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
 
-	s.request("POST", "add", expectedStatus, reqBody, t)
+	s.request(server.MethodAddModify, "update", server.StatusAddModify, reqBody, t)
 
-	if expectedStatus == http.StatusConflict {
-		// nothing more to do
-		return
-	}
-
-	// now issuing a list
-	// but before wait.
 	time.Sleep(15 * time.Millisecond)
+
 	tasks := s.list(true, t)
 	if tasks == nil {
-		return
+		return task.Task{}
 	}
 
-	found := false
-	for _, gotTask := range tasks {
-		if gotTask.Name == s.toAdd.Name {
-			found = true
-			break
+	// found := false
+	// for _, gotTask := range tasks {
+	// 	if gotTask.Name == toAdd.Name {
+	// 		found = true
+	// 		break
+	// 	}
+	// }
+
+	// if !found {
+	// 	t.Errorf("Task add but not found")
+	// }
+	tasksIn(toAdd, tasks, t)
+
+	return toAdd
+}
+
+func (s *serverTestCase) add(t *testing.T) {
+
+	s.internalAdd(s.toAdd, t)
+
+	mod := s.internalAdd(s.toMod, t)
+	if mod.Name == s.toMod.Name {
+		if reflect.DeepEqual(mod, s.toAdd) {
+			t.Errorf("AddMod failed\ngot: %v\nexp: %v", mod, s.toAdd)
 		}
-	}
-
-	if !found {
-		t.Errorf("Task add but not found")
+	} else {
+		t.Errorf("The two mod are not the same:\ngot: %v\nexp: %v\n",
+			mod, s.toMod)
 	}
 }
 
@@ -313,6 +319,7 @@ var serverTests = []serverTestCase{
 			Shell:      "bash",
 		},
 		toAdd: taskToAdd,
+		toMod: taskToMod,
 	},
 }
 
@@ -326,10 +333,8 @@ func (s *serverTest) runTest(t *testing.T) {
 		for i := range testCase.tasks {
 			testCase.execute(i, t)
 		}
-		testCase.add(server.StatusAdd, t)
-		testCase.add(http.StatusConflict, t)
+		testCase.add(t)
 		testCase.server.ServerCloseChan <- syscall.SIGINT
-		// testCase.server.taskManagerCloseChan <- syscall.SIGINT
 		end(testCase.config, t)
 	}
 }

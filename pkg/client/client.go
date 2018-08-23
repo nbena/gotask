@@ -100,7 +100,7 @@ func (c *TaskClient) Refresh() error {
 }
 
 // Add asks the server to add the task to the tasks list.
-func (c *TaskClient) Add(toAdd task.Task) error {
+func (c *TaskClient) AddModify(toAdd task.Task) error {
 
 	message := req.AddTaskRequest{
 		Task: toAdd,
@@ -113,7 +113,7 @@ func (c *TaskClient) Add(toAdd task.Task) error {
 
 	body := ioutil.NopCloser(bytes.NewBuffer(data))
 
-	_, err = c.request(server.MethodAdd, "add", server.StatusAdd, body)
+	_, err = c.request(server.MethodAddModify, "update", server.StatusAddModify, body)
 	return err
 }
 

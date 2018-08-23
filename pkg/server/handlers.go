@@ -154,31 +154,59 @@ func (t *TaskServer) poll(w http.ResponseWriter, r *http.Request) {
 }
 
 // add
-func (t *TaskServer) add(w http.ResponseWriter, r *http.Request) {
+// func (t *TaskServer) add(w http.ResponseWriter, r *http.Request) {
 
-	if ok := checkMethod(http.MethodPost, w, r); !ok {
+// 	if ok := checkMethod(http.MethodPost, w, r); !ok {
+// 		return
+// 	}
+
+// 	addTaskReq := req.AddTaskRequest{}
+// 	decoder := json.NewDecoder(r.Body)
+
+// 	if err := decoder.Decode(&addTaskReq); err != nil {
+// 		writeError(w, err.Error(), true, http.StatusInternalServerError)
+// 		return
+// 	}
+
+// 	if _, loaded := t.taskMap.LoadOrStore(addTaskReq.Task.Name, addTaskReq.Task); loaded {
+// 		writeError(w, "Another task with the same name is already present",
+// 			true, StatusAddConflict)
+// 		return
+// 	}
+
+// 	go func() {
+// 		if err := t.taskMap.Write(t.config.taskFilePath); err != nil {
+// 			log.Printf("Error write to file: %s\n", err.Error())
+// 		}
+// 	}()
+
+// 	w.WriteHeader(StatusAdd)
+// }
+
+func (t *TaskServer) addOrModify(w http.ResponseWriter, r *http.Request) {
+	if ok := checkMethod(MethodAddModify, w, r); !ok {
 		return
 	}
 
 	addTaskReq := req.AddTaskRequest{}
 	decoder := json.NewDecoder(r.Body)
-
 	if err := decoder.Decode(&addTaskReq); err != nil {
 		writeError(w, err.Error(), true, http.StatusInternalServerError)
 		return
 	}
 
-	if _, loaded := t.taskMap.LoadOrStore(addTaskReq.Task.Name, addTaskReq.Task); loaded {
-		writeError(w, "Another task with the same name is already present",
-			true, StatusAddConflict)
-		return
+	_, loaded := t.taskMap.LoadOrStore(addTaskReq.Task.Name, addTaskReq.Task)
+	if loaded {
+		// if alreadt there, modify
+		t.taskMap.Store(addTaskReq.Task.Name, addTaskReq.Task)
 	}
 
+	// t.taskMap.Store()
 	go func() {
 		if err := t.taskMap.Write(t.config.taskFilePath); err != nil {
 			log.Printf("Error write to file: %s\n", err.Error())
 		}
 	}()
 
-	w.WriteHeader(StatusAdd)
+	w.WriteHeader(StatusAddModify)
 }

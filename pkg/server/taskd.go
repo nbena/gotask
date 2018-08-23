@@ -27,19 +27,17 @@ import (
 )
 
 const (
-	MethodList    = http.MethodGet
-	MethodRefresh = http.MethodPost
-	MethodExecute = http.MethodPut
-	MethodPoll    = http.MethodGet
-	MethodAdd     = http.MethodPost
+	MethodList      = http.MethodGet
+	MethodRefresh   = http.MethodPost
+	MethodExecute   = http.MethodPut
+	MethodPoll      = http.MethodGet
+	MethodAddModify = http.MethodPut
 
-	StatusList    = http.StatusOK
-	StatusRefresh = http.StatusNoContent
-	StatusExecute = http.StatusOK
-	StatusPoll    = http.StatusOK
-	StatusAdd     = http.StatusNoContent
-
-	StatusAddConflict = http.StatusConflict
+	StatusList      = http.StatusOK
+	StatusRefresh   = http.StatusNoContent
+	StatusExecute   = http.StatusOK
+	StatusPoll      = http.StatusOK
+	StatusAddModify = http.StatusNoContent
 	// StatusNotFound    = http.StatusNotFound
 )
 
@@ -112,7 +110,8 @@ func NewServer(config *Config) (*TaskServer, error) {
 	mux.HandleFunc("/list", server.list)
 	mux.HandleFunc("/exec", server.execute)
 	mux.HandleFunc("/poll", server.poll)
-	mux.HandleFunc("/add", server.add)
+	// mux.HandleFunc("/add", server.add)
+	mux.HandleFunc("/update", server.addOrModify)
 
 	server.httpServer = &http.Server{
 		Handler: mux,

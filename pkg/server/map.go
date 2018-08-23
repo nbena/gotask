@@ -100,7 +100,7 @@ func (m *taskMap) ReadTasks(path string, empty bool) error {
 
 // Write writes the map to file.
 func (m *taskMap) Write(path string) error {
-	file, err := os.Open(path)
+	file, err := os.OpenFile(path, os.O_RDWR, 0755)
 	if err != nil {
 		return err
 	}

@@ -14,6 +14,7 @@ package tests
 
 import (
 	"testing"
+	"time"
 
 	"github.com/nbena/gotask/pkg/client"
 	"github.com/nbena/gotask/pkg/server"
@@ -22,6 +23,7 @@ import (
 
 type clientTestCase struct {
 	taskToAdd    task.Task
+	taskToMod    task.Task
 	tasks        []task.Task
 	client       *client.TaskClient
 	server       *server.TaskServer
@@ -60,17 +62,24 @@ func (c *clientTestCase) list(t *testing.T) {
 	tasksCheck(c.tasks, tasks, t)
 }
 
-func (c *clientTestCase) add(t *testing.T) {
-	if err := c.client.Add(c.taskToAdd); err != nil {
+func (c *clientTestCase) internalAdd(toAdd task.Task, t *testing.T) {
+	if err := c.client.AddModify(toAdd); err != nil {
 		t.Errorf("Add error: %s\n", err.Error())
 	}
+
+	time.Sleep(15 * time.Millisecond)
 
 	tasks, err := c.client.List()
 	if err != nil {
 		t.Errorf("List post-add error: %s\n", err.Error())
 	}
 
-	tasksCheck(append(c.tasks, c.taskToAdd), tasks, t)
+	tasksIn(toAdd, tasks, t)
+}
+
+func (c *clientTestCase) add(t *testing.T) {
+	c.internalAdd(c.taskToAdd, t)
+	c.internalAdd(c.taskToMod, t)
 }
 
 func (c *clientTestCase) execute(i int, t *testing.T) {
@@ -111,6 +120,7 @@ var clientTests = []clientTestCase{
 			ServerPort: 7667,
 		},
 		taskToAdd: taskToAdd,
+		taskToMod: taskToMod,
 	},
 }
 

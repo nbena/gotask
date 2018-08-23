@@ -110,6 +110,8 @@ func writeError(w http.ResponseWriter, msg string, addContentType bool,
 	status int) {
 	w.WriteHeader(status)
 
+	log.Printf("Error: %s\n", msg)
+
 	if addContentType {
 		w.Header().Add("Content-type", "application/json, charset=utf-8")
 	}
