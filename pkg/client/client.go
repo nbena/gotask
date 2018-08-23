@@ -49,7 +49,7 @@ func NewTaskClient(config *Config) *TaskClient {
 func (c *TaskClient) request(method, postfix string,
 	expectedStatus int, body io.ReadCloser) (*http.Response, error) {
 
-	uri := fmt.Sprintf("http://%s:%d/%s",
+	uri := fmt.Sprintf("http://%s:%d%s",
 		c.config.ServerAddr, c.config.ServerPort, postfix)
 
 	req, err := http.NewRequest(method, uri, body)
@@ -72,7 +72,7 @@ func (c *TaskClient) request(method, postfix string,
 // List returns the list of tasks on the server.
 func (c *TaskClient) List() ([]task.Task, error) {
 
-	resp, err := c.request(server.MethodList, "list", server.StatusList, nil)
+	resp, err := c.request(server.MethodList, server.APIList, server.StatusList, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (c *TaskClient) List() ([]task.Task, error) {
 // Refresh forces the server to re-read the tasks list.
 func (c *TaskClient) Refresh() error {
 
-	_, err := c.request(server.MethodRefresh, "refresh", server.StatusRefresh, nil)
+	_, err := c.request(server.MethodRefresh, server.APIRefresh, server.StatusRefresh, nil)
 	return err
 }
 
@@ -113,7 +113,7 @@ func (c *TaskClient) AddModify(toAdd task.Task) error {
 
 	body := ioutil.NopCloser(bytes.NewBuffer(data))
 
-	_, err = c.request(server.MethodAddModify, "update", server.StatusAddModify, body)
+	_, err = c.request(server.MethodAddModify, server.APIAddModify, server.StatusAddModify, body)
 	return err
 }
 
@@ -131,7 +131,7 @@ func (c *TaskClient) Execute(taskName string) (*req.ShortRunningTaskResponse, er
 
 	body := ioutil.NopCloser(bytes.NewBuffer(data))
 
-	resp, err := c.request(server.MethodExecute, "exec", server.StatusExecute, body)
+	resp, err := c.request(server.MethodExecute, server.APIExecute, server.StatusExecute, body)
 	if err != nil {
 		return nil, err
 	}

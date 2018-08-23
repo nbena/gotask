@@ -39,6 +39,12 @@ const (
 	StatusPoll      = http.StatusOK
 	StatusAddModify = http.StatusNoContent
 	// StatusNotFound    = http.StatusNotFound
+
+	APIList      = "/list"
+	APIRefresh   = "/refresh"
+	APIExecute   = "/exec"
+	APIPoll      = "/poll"
+	APIAddModify = "/update"
 )
 
 // TaskServer is the HTTP server
@@ -106,12 +112,12 @@ func NewServer(config *Config) (*TaskServer, error) {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/refresh", server.refresh)
-	mux.HandleFunc("/list", server.list)
-	mux.HandleFunc("/exec", server.execute)
-	mux.HandleFunc("/poll", server.poll)
+	mux.HandleFunc(APIRefresh, server.refresh)
+	mux.HandleFunc(APIList, server.list)
+	mux.HandleFunc(APIExecute, server.execute)
+	mux.HandleFunc(APIPoll, server.poll)
 	// mux.HandleFunc("/add", server.add)
-	mux.HandleFunc("/update", server.addOrModify)
+	mux.HandleFunc(APIAddModify, server.addOrModify)
 
 	server.httpServer = &http.Server{
 		Handler: mux,

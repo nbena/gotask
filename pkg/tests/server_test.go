@@ -86,7 +86,7 @@ func (s *serverTestCase) request(method, postfix string,
 	expectedStatus int, body io.ReadCloser,
 	t *testing.T) *http.Response {
 
-	uri := fmt.Sprintf("http://%s:%d/%s", s.config.ListenAddr, s.config.ListenPort, postfix)
+	uri := fmt.Sprintf("http://%s:%d%s", s.config.ListenAddr, s.config.ListenPort, postfix)
 
 	req, err := http.NewRequest(method, uri, body)
 	if err != nil {
@@ -111,7 +111,7 @@ func (s *serverTestCase) request(method, postfix string,
 
 func (s *serverTestCase) refresh(t *testing.T) {
 
-	resp := s.request("POST", "refresh", server.StatusRefresh, nil, t)
+	resp := s.request(server.MethodRefresh, server.APIRefresh, server.StatusRefresh, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -120,7 +120,7 @@ func (s *serverTestCase) refresh(t *testing.T) {
 
 func (s *serverTestCase) list(print bool, t *testing.T) []task.Task {
 
-	resp := s.request(server.MethodList, "list", server.StatusList, nil, t)
+	resp := s.request(server.MethodList, server.APIList, server.StatusList, nil, t)
 
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
@@ -146,7 +146,7 @@ func (s *serverTestCase) list(print bool, t *testing.T) []task.Task {
 
 func (s *serverTestCase) poll(id string, expectedStatus int, t *testing.T) {
 
-	resp := s.request("GET", "poll?id="+id, expectedStatus, nil, t)
+	resp := s.request(server.MethodPoll, server.APIPoll+"?id="+id, expectedStatus, nil, t)
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
 	}
@@ -197,7 +197,7 @@ func (s *serverTestCase) execute(i int, t *testing.T) {
 
 	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
 
-	resp := s.request(server.MethodExecute, "exec", server.StatusExecute, reqBody, t)
+	resp := s.request(server.MethodExecute, server.APIExecute, server.StatusExecute, reqBody, t)
 	if resp == nil {
 		t.Fatalf("Impossible to do the request\n")
 	}
@@ -253,7 +253,7 @@ func (s *serverTestCase) internalAdd(toAdd task.Task, t *testing.T) task.Task {
 	}
 	reqBody := ioutil.NopCloser(bytes.NewReader(dataEnc))
 
-	s.request(server.MethodAddModify, "update", server.StatusAddModify, reqBody, t)
+	s.request(server.MethodAddModify, server.APIAddModify, server.StatusAddModify, reqBody, t)
 
 	time.Sleep(15 * time.Millisecond)
 
@@ -262,17 +262,6 @@ func (s *serverTestCase) internalAdd(toAdd task.Task, t *testing.T) task.Task {
 		return task.Task{}
 	}
 
-	// found := false
-	// for _, gotTask := range tasks {
-	// 	if gotTask.Name == toAdd.Name {
-	// 		found = true
-	// 		break
-	// 	}
-	// }
-
-	// if !found {
-	// 	t.Errorf("Task add but not found")
-	// }
 	tasksIn(toAdd, tasks, t)
 
 	return toAdd
